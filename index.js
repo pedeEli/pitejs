@@ -14,7 +14,7 @@ app.use(async (req, res, next) => {
     const path = join(__dirname, 'src', req.url)
 
     try {
-        await resSendFile(res, path)
+        await sendFile(res, path)
     } catch (e) {
         const files = await readdir(path)
         const indexFiles = files.filter(file => file.match(/^index\./))
@@ -22,7 +22,7 @@ app.use(async (req, res, next) => {
             return next()
 
         const indexPath = join(path, indexFiles[0])
-        await resSendFile(res, indexPath)
+        await sendFile(res, indexPath)
     }
 })
 
@@ -33,5 +33,18 @@ const resSendFile = (res, path) => new Promise((resolve, reject) => {
         resolve()
     })
 })
+
+const sendFile = async (res, path) => {
+    const {ext} = parse(path)
+
+    if (ext === '.ts') {
+        const file = await readFile(path, 'utf8')
+        const compiledFile = tsc.compile(file, path)
+        res.setHeader('Content-Type', 'application/javascript')
+        res.send(compiledFile)
+        return
+    }
+    await resSendFile(res, path)
+}
 
 app.listen(3000, () => console.log('Listening on port 3000'))
