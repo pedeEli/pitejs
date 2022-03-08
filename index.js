@@ -12,9 +12,9 @@ app.use(async (req, res, next) => {
         return next()
     
     const path = join(__dirname, 'src', req.url)
-    
+
     try {
-        await sendFile(res, path)
+        await resSendFile(res, path)
     } catch (e) {
         const files = await readdir(path)
         const indexFiles = files.filter(file => file.match(/^index\./))
@@ -22,13 +22,16 @@ app.use(async (req, res, next) => {
             return next()
 
         const indexPath = join(path, indexFiles[0])
-        await sendFile(res, indexPath)
+        await resSendFile(res, indexPath)
     }
 })
 
-const sendFile = async (res, path) => {
-    const file = await readFile(path, 'utf8')
-    res.send(file)
-}
+const resSendFile = (res, path) => new Promise((resolve, reject) => {
+    res.sendFile(path, (err) => {
+        if (err)
+            return reject(err)
+        resolve()
+    })
+})
 
 app.listen(3000, () => console.log('Listening on port 3000'))
