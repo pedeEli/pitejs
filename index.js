@@ -3,7 +3,6 @@ const {readFile, readdir} = require('fs/promises')
 const {join, parse} = require('path')
 const {create} = require('ts-node')
 
-
 const tsc = create()
 const app = express()
 
@@ -42,6 +41,16 @@ const sendFile = async (res, path) => {
         const compiledFile = tsc.compile(file, path)
         res.setHeader('Content-Type', 'application/javascript')
         res.send(compiledFile)
+        return
+    }
+    if (ext === '.css') {
+        const file = await readFile(path, 'utf8')
+        const js = `const style = document.createElement('style')
+style.append(\`${file}\`)
+document.head.append(style)        
+`
+        res.setHeader('Content-Type', 'application/javascript')
+        res.send(js)
         return
     }
     await resSendFile(res, path)
