@@ -10,8 +10,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "cssnano": "^5.1.1",
     "express": "^4.17.3",
     "postcss": "^8.4.8",
+    "postcss-import": "^14.0.2",
     "ts-node": "^10.7.0",
     "typescript": "^4.6.2"
   },

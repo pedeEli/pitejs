@@ -2,6 +2,9 @@ const express = require('express')
 const {readFile, readdir} = require('fs/promises')
 const {join, parse} = require('path')
 const {create} = require('ts-node')
+const postcss = require('postcss')
+const postcssImport = require('postcss-import')
+const cssnano = require('cssnano')
 
 const tsc = create()
 const app = express()
@@ -45,10 +48,13 @@ const sendFile = async (res, path) => {
     }
     if (ext === '.css') {
         const file = await readFile(path, 'utf8')
+        const parsedFile = await postcss([
+            postcssImport({root: 'src'}),
+            cssnano
+        ]).process(file).catch(console.error)
         const js = `const style = document.createElement('style')
-style.append(\`${file}\`)
-document.head.append(style)        
-`
+style.append('${parsedFile}')
+document.head.append(style)`
         res.setHeader('Content-Type', 'application/javascript')
         res.send(js)
         return
