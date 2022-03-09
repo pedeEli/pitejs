@@ -7,7 +7,6 @@ const postcssImport = require('postcss-import')
 const cssnano = require('cssnano')
 const {WebSocketServer} = require('ws')
 const watch = require('node-watch')
-const htmlParser = require('node-html-parser')
 
 const tsc = create()
 const app = express()
@@ -73,12 +72,10 @@ const sendFile = async (res, path) => {
         return
     }
     if (ext === '.html') {
-        const file = await readFile(path, 'utf8')
-        const parsedFile = htmlParser.parse(file)
-        const head = parsedFile.querySelector('head')
-        head.appendChild(new htmlParser.HTMLElement('script', {src: '@pitejs'}, 'src="@pitejs"', head))
+        const html = await readFile(path, 'utf8')
+        const modifiedHtml = injectIntoHead(html)
         res.setHeader('Content-Type', 'text/html')
-        res.send(parsedFile.toString())
+        res.send(modifiedHtml)
         return
     }
     await resSendFile(res, path)
@@ -115,6 +112,13 @@ const getImports = async (dir, path, file) => {
         return [importPath, ...recursiveImports]
     }))
     return importPaths.flat()
+}
+const injectIntoHead = (html) => {
+    debugger
+    const re = /<head[^>]*>/i
+    if (!re.test(html))
+        return html
+    return html.replace(re, (match) => `${match}\n<script src="@pitejs"></script>`)
 }
 
 
