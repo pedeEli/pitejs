@@ -59,9 +59,9 @@ const sendFile = async (res, path) => {
     const {ext} = parse(path)
 
     if (ext === '.ts') {
-        const file = await readFile(path, 'utf8')
-        const compiledFile = tsc.compile(file, path)
-        sendJs(res, compiledFile)
+        const ts = await readFile(path, 'utf8')
+        const compiledTs = tsc.compile(ts, path)
+        sendJs(res, compiledTs)
         return
     }
     if (ext === '.css') {
@@ -90,10 +90,9 @@ const parseCSS = async (path) => {
     return {imports: [path, ...imports], css: css.toString()}
 }
 const modifyLoadCSS = (file, css, imports, path) => {
-    return file.replace(/__(css|imports|name)__/g, (sub) => {
-        if (sub === '__css__') return css
-        if (sub === '__imports__') return JSON.stringify(imports)
-        if (sub === '__name__') return encodeURIComponent(path)
+    const re = /__css__([\s\S]*)__name__([\s\S]*)__imports__/
+    return file.replace(re, (_, g1, g2) => {
+        return `${css}${g1}${encodeURIComponent(path)}${g2}${JSON.stringify(imports)}`
     })
 }
 const sendJs = (res, file) => {
