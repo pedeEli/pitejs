@@ -12,10 +12,13 @@
   "dependencies": {
     "cssnano": "^5.1.1",
     "express": "^4.17.3",
+    "node-html-parser": "^5.2.0",
+    "node-watch": "^0.7.3",
     "postcss": "^8.4.8",
     "postcss-import": "^14.0.2",
     "ts-node": "^10.7.0",
-    "typescript": "^4.6.2"
+    "typescript": "^4.6.2",
+    "ws": "^8.5.0"
   },
   "devDependencies": {
     "nodemon": "^2.0.15"

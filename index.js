@@ -1,10 +1,15 @@
 const express = require('express')
-const {readFile, readdir} = require('fs/promises')
+const {readFile, readdir, lstat} = require('fs/promises')
 const {join, parse} = require('path')
 const {create} = require('ts-node')
 const postcss = require('postcss')
 const postcssImport = require('postcss-import')
 const cssnano = require('cssnano')
+
+const {WebSocketServer} = require('ws')
+const watch = require('node-watch')
+const htmlParser = require('node-html-parser')
+const { SocketAddress } = require('net')
 
 const tsc = create()
 const app = express()
@@ -12,20 +17,43 @@ const app = express()
 app.use(async (req, res, next) => {
     if (req.method.toLowerCase() !== 'get')
         return next()
-    
+
     const path = join(__dirname, 'src', req.url)
 
     try {
         await sendFile(res, path)
     } catch (e) {
-        const files = await readdir(path)
-        const indexFiles = files.filter(file => file.match(/^index\./))
-        if (!indexFiles.length)
-            return next()
-
-        const indexPath = join(path, indexFiles[0])
-        await sendFile(res, indexPath)
+        try {
+            const files = await readdir(path)
+            const indexFiles = files.filter(file => file.match(/^index\./))
+            if (!indexFiles.length)
+                return next()
+    
+            const indexPath = join(path, indexFiles[0])
+            await sendFile(res, indexPath)
+        } catch (e) {
+            next()
+        }
     }
+})
+
+app.get('/@pitejs', async (req, res) => {
+    if (req.query.css) {
+        const path = req.query.css
+        const file = await readFile(path, 'utf8')
+        const parsedFile = await postcss([
+            postcssImport({root: 'src'}),
+            cssnano
+        ]).process(file, {from: path})
+        const imports = await getImports(parse(path).dir, path, file)
+        res.json({
+            css: parsedFile.toString(),
+            imports: [...imports, path]
+        })
+        return
+    }
+    const path = join(__dirname, 'client.js')
+    await resSendFile(res, path)
 })
 
 const resSendFile = (res, path) => new Promise((resolve, reject) => {
@@ -37,7 +65,7 @@ const resSendFile = (res, path) => new Promise((resolve, reject) => {
 })
 
 const sendFile = async (res, path) => {
-    const {ext} = parse(path)
+    const {ext, dir} = parse(path)
 
     if (ext === '.ts') {
         const file = await readFile(path, 'utf8')
@@ -51,15 +79,71 @@ const sendFile = async (res, path) => {
         const parsedFile = await postcss([
             postcssImport({root: 'src'}),
             cssnano
-        ]).process(file).catch(console.error)
-        const js = `const style = document.createElement('style')
-style.append('${parsedFile}')
-document.head.append(style)`
+        ]).process(file, {from: path})
+        const imports = await getImports(dir, path, file)
+        const js = await readFile('loadCSS.js', 'utf8')
         res.setHeader('Content-Type', 'application/javascript')
-        res.send(js)
+        res.send(js.replace('__css__', parsedFile).replace('__imports__', JSON.stringify([...imports, path])).replace('__name__', encodeURIComponent(path)))
+        return
+    }
+    if (ext === '.html') {
+        const file = await readFile(path, 'utf8')
+        const parsedFile = htmlParser.parse(file)
+        const head = parsedFile.querySelector('head')
+        head.appendChild(new htmlParser.HTMLElement('script', {src: '@pitejs'}, 'src="@pitejs"', head))
+        res.setHeader('Content-Type', 'text/html')
+        res.send(parsedFile.toString())
         return
     }
     await resSendFile(res, path)
 }
 
-app.listen(3000, () => console.log('Listening on port 3000'))
+const getImports = async (dir, path, file) => {
+    const css = postcss.parse(file, {from: path})
+    const imports = css.nodes.filter(node => node.type === 'atrule' && node.name === 'import')
+    const importPaths = await Promise.all(imports.map(async imp => {
+        const importName = imp.params.slice(1, -1)
+        const importPath = join(dir, importName)
+        const importFile = await readFile(importPath, 'utf8')
+        const info = parse(importPath)
+        const recursiveImports = await getImports(info.dir, importPath, importFile)
+        return [importPath, ...recursiveImports]
+    }))
+    return importPaths.flat()
+}
+
+const wss = new WebSocketServer({
+    noServer: true
+})
+
+const subscribers = new Set()
+
+wss.on('connection', (socket, request) => {
+    const subscriber = (event, path, ext) => {
+        if (ext === '.css') {
+            socket.send(JSON.stringify({action: 'reload', path: join(__dirname, path)}))
+            return
+        }
+        socket.send(JSON.stringify({action: 'refresh'}))
+    }
+
+    subscribers.add(subscriber)
+    socket.on('close', () => {
+        subscribers.delete(subscriber)
+    })
+})
+
+const server = app.listen(3000, () => console.log('Listening on port 3000'))
+
+server.on('upgrade', (request, socket, head) => {
+    wss.handleUpgrade(request, socket, head, (client) => {
+        wss.emit("connection", client, request)
+    })
+})
+
+const watcher = watch('src', {recursive: true})
+
+watcher.on('change', (event, path) => {
+    const {ext} = parse(path)
+    subscribers.forEach(subscriber => subscriber(event, path, ext))
+})
