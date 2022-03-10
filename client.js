@@ -1,6 +1,12 @@
+let lostConnection = false
+
 const connect = () => {
     const ws = new WebSocket('ws://localhost:3000')
-    ws.addEventListener('open', () => console.log('[pitejs] hotreload connected'))
+    ws.addEventListener('open', () => {
+        if (lostConnection)
+            location.reload()
+        console.log('[pitejs] hotreload connected')
+    })
     ws.addEventListener('message', ({data}) => {
         const message = JSON.parse(data)
         if (message.action === 'refresh') {
@@ -16,12 +22,11 @@ const connect = () => {
     })
     ws.addEventListener('close', () => {
         console.log('[pitejs] hotreload lost connection')
-        const i = setInterval(() => {
-            try {
-                location.reload()
-                clearInterval(i)
-            } catch (e) {}
-        }, 100)
+        lostConnection = true
+        setTimeout(() => {
+            connect()
+        }, 1000)
     })
+    ws.addEventListener('error', console.error)
 }
 connect()
