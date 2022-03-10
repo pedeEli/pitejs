@@ -10,9 +10,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "chokidar": "^3.5.3",
     "cssnano": "^5.1.1",
     "express": "^4.17.3",
-    "node-watch": "^0.7.3",
     "postcss": "^8.4.8",
     "postcss-import": "^14.0.2",
     "ts-node": "^10.7.0",

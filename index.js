@@ -6,7 +6,7 @@ const postcss = require('postcss')
 const postcssImport = require('postcss-import')
 const cssnano = require('cssnano')
 const {WebSocketServer} = require('ws')
-const watch = require('node-watch')
+const chokidar = require('chokidar')
 
 const tsc = create()
 const app = express()
@@ -123,17 +123,17 @@ const injectIntoHead = (html) => {
 
 // sending reload signals to client
 const subscribers = new Set()
-const watcher = watch('src', {recursive: true})
-watcher.on('change', (event, path) => {
+const watcher = chokidar.watch('./src')
+watcher.on('change', (path) => {
     const {ext} = parse(path)
-    subscribers.forEach(subscriber => subscriber(event, path, ext))
+    subscribers.forEach(subscriber => subscriber(path, ext))
 })
 
 const wss = new WebSocketServer({
     noServer: true
 })
 wss.on('connection', (socket, request) => {
-    const subscriber = (event, path, ext) => {
+    const subscriber = (path, ext) => {
         if (ext === '.css') {
             socket.send(JSON.stringify({action: 'reload', path: join(__dirname, path)}))
             return
